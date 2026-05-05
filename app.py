@@ -118,7 +118,7 @@ def fetch_data() -> tuple[pd.DataFrame | None, str | None]:
     # then data rows. Find the header row index dynamically.
     header_row = None
     for i, row in raw.iterrows():
-        vals = row.astype(str).str.lower().values
+        vals = [str(v).lower() for v in row.values]
         if any("application number" in v for v in vals):
             header_row = i
             break
