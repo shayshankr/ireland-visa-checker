@@ -1,3 +1,14 @@
+---
+title: Ireland Visa Checker New Delhi
+emoji: 🌍
+colorFrom: green
+colorTo: blue
+sdk: streamlit
+sdk_version: 1.44.1
+app_file: app.py
+pinned: false
+---
+
 # 🇮🇪 Ireland Visa Decision Checker — New Delhi
 
 A Streamlit web app that lets applicants instantly look up their Irish visa decision by application number, using live data published by the Irish Embassy in New Delhi.
