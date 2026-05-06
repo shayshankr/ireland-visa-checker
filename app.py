@@ -24,6 +24,49 @@ def normalize_app_number(value: str) -> str:
     return value.strip().upper().removeprefix("IRL")
 
 
+def validate_input(raw: str) -> tuple[bool, str, str]:
+    """
+    Validate the user's input.
+    Returns (is_valid, error_message, normalized_number).
+    Valid formats: 12345678 | IRL12345678 | irl12345678
+    """
+    raw = raw.strip()
+    if not raw:
+        return False, "", ""
+
+    upper = raw.upper()
+
+    # Check for special characters (only letters and digits allowed)
+    import re
+    if not re.match(r'^[A-Za-z0-9]+$', raw):
+        return False, "❌ No spaces or special characters allowed. Use format: `IRL12345678` or `12345678`", ""
+
+    # Strip IRL prefix if present
+    if upper.startswith("IRL"):
+        prefix = raw[:3]
+        numeric_part = raw[3:]
+        # Anything after IRL must be digits only
+        if not numeric_part.isdigit():
+            return False, f"❌ After `{prefix}` only digits are allowed. Example: `IRL63690452`", ""
+    else:
+        # No IRL prefix — check for any letters in the input
+        if not raw.isdigit():
+            # Find which letters are present
+            letters_found = "".join(sorted(set(c for c in raw.upper() if c.isalpha())))
+            if upper.endswith(tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")):
+                return False, f"❌ Letters must come at the **start** as `IRL` prefix only. Found `{letters_found}` at end.", ""
+            return False, f"❌ Only the prefix `IRL` is allowed. Found unexpected letters: `{letters_found}`. Use `IRL12345678` or `12345678`", ""
+        numeric_part = raw
+
+    # Check digit length — must be exactly 8
+    if len(numeric_part) < 8:
+        return False, f"❌ Application number is too short ({len(numeric_part)} digits). Must be exactly **8 digits**. Example: `IRL63690452`", ""
+    if len(numeric_part) > 8:
+        return False, f"❌ Application number is too long ({len(numeric_part)} digits). Must be exactly **8 digits**. Example: `IRL63690452`", ""
+
+    return True, "", numeric_part
+
+
 def df_to_html_table_nearest(dataframe):
     """Render nearest-numbers table as plain HTML with coloured decisions."""
     rows = ""
@@ -173,66 +216,70 @@ st.divider()
 
 # ── Search ────────────────────────────────────────────────────────────────────
 st.subheader("Check your application")
-st.caption("Accepts formats like `63690452`, `IRL63690452`, or `irl63690452`")
+st.caption("Valid formats: `63690452` · `IRL63690452` · `irl63690452` — exactly 8 digits, optional IRL prefix")
 query = st.text_input(
     "Enter your Application Number",
     placeholder="e.g. IRL63690452 or 63690452",
-    max_chars=25,
+    max_chars=11,  # IRL (3) + 8 digits = 11 max
 ).strip()
 
 if query:
-    normalized_query = normalize_app_number(query)
-    df_normalized = df["Application Number"].apply(normalize_app_number)
-    result = df[df_normalized == normalized_query]
+    is_valid, error_msg, normalized_query = validate_input(query)
 
-    if result.empty:
-        st.warning(f"No record found for Application Number: {normalized_query}.")
-
-        # Find nearest application numbers
-        try:
-            query_int = int(normalized_query)
-            nums = df["Application Number"].apply(
-                lambda x: int(normalize_app_number(x)) if normalize_app_number(x).isdigit() else None
-            ).dropna().astype(int)
-
-            below = nums[nums < query_int]
-            above = nums[nums > query_int]
-
-            nearest_rows = []
-            if not below.empty:
-                closest_below_num = below.max()
-                closest_below = df[nums == closest_below_num].iloc[0]
-                nearest_rows.append({
-                    "Nearest Application": "Before",
-                    "Application Number": str(closest_below["Application Number"]),
-                    "Decision": closest_below["Decision"],
-                    "Difference": query_int - closest_below_num,
-                })
-            if not above.empty:
-                closest_above_num = above.min()
-                closest_above = df[nums == closest_above_num].iloc[0]
-                nearest_rows.append({
-                    "Nearest Application": "After",
-                    "Application Number": str(closest_above["Application Number"]),
-                    "Decision": closest_above["Decision"],
-                    "Difference": closest_above_num - query_int,
-                })
-
-            if nearest_rows:
-                st.subheader("Nearest Application Numbers")
-                nearest_df = pd.DataFrame(nearest_rows)
-                st.markdown(df_to_html_table_nearest(nearest_df), unsafe_allow_html=True)
-        except ValueError:
-            pass  # non-numeric query, skip nearest search
+    if not is_valid:
+        st.error(error_msg)
     else:
-        decision = result.iloc[0]["Decision"]
-        app_num = result.iloc[0]["Application Number"]
-        if "approv" in decision.lower() or "grant" in decision.lower():
-            st.success(f"**Application {app_num} — Decision: {decision}** ✅")
-        elif "refus" in decision.lower() or "reject" in decision.lower():
-            st.error(f"**Application {app_num} — Decision: {decision}** ❌")
+        df_normalized = df["Application Number"].apply(normalize_app_number)
+        result = df[df_normalized == normalized_query]
+
+        if result.empty:
+            st.warning(f"No record found for Application Number: {normalized_query}.")
+
+            # Find nearest application numbers
+            try:
+                query_int = int(normalized_query)
+                nums = df["Application Number"].apply(
+                    lambda x: int(normalize_app_number(x)) if normalize_app_number(x).isdigit() else None
+                ).dropna().astype(int)
+
+                below = nums[nums < query_int]
+                above = nums[nums > query_int]
+
+                nearest_rows = []
+                if not below.empty:
+                    closest_below_num = below.max()
+                    closest_below = df[nums == closest_below_num].iloc[0]
+                    nearest_rows.append({
+                        "Nearest Application": "Before",
+                        "Application Number": str(closest_below["Application Number"]),
+                        "Decision": closest_below["Decision"],
+                        "Difference": query_int - closest_below_num,
+                    })
+                if not above.empty:
+                    closest_above_num = above.min()
+                    closest_above = df[nums == closest_above_num].iloc[0]
+                    nearest_rows.append({
+                        "Nearest Application": "After",
+                        "Application Number": str(closest_above["Application Number"]),
+                        "Decision": closest_above["Decision"],
+                        "Difference": closest_above_num - query_int,
+                    })
+
+                if nearest_rows:
+                    st.subheader("Nearest Application Numbers")
+                    nearest_df = pd.DataFrame(nearest_rows)
+                    st.markdown(df_to_html_table_nearest(nearest_df), unsafe_allow_html=True)
+            except ValueError:
+                pass
         else:
-            st.info(f"**Application {app_num} — Decision: {decision}**")
+            decision = result.iloc[0]["Decision"]
+            app_num = result.iloc[0]["Application Number"]
+            if "approv" in decision.lower() or "grant" in decision.lower():
+                st.success(f"**Application {app_num} — Decision: {decision}** ✅")
+            elif "refus" in decision.lower() or "reject" in decision.lower():
+                st.error(f"**Application {app_num} — Decision: {decision}** ❌")
+            else:
+                st.info(f"**Application {app_num} — Decision: {decision}**")
 
 st.divider()
 
