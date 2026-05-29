@@ -4,9 +4,13 @@ import streamlit as st
 from io import BytesIO
 from bs4 import BeautifulSoup
 
+from PIL import Image
+
+_icon = Image.open("india_irish_visa_result.png")
+
 st.set_page_config(
     page_title="Ireland Visa Decision Checker – New Delhi",
-    page_icon="🇮🇪",
+    page_icon=_icon,
     layout="centered",
 )
 
@@ -191,6 +195,7 @@ def fetch_data() -> tuple[pd.DataFrame | None, str | None]:
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
+st.image("india_irish_visa_result.png", width=120)
 st.title("🇮🇪 Ireland Visa Decision Checker")
 st.caption("New Delhi Embassy · Data sourced from ireland.ie")
 
